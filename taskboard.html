@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Taskboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9eef2;--panel:#f7f9fb;--card:#fff;--ink:#16212c;--mute:#64727f;--line:#d3dbe2;--c0:#d9822b;--c1:#2b7fd9;--c2:#2a9d6f;--accent:#16212c;--accent-ink:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f161d;--panel:#18222c;--card:#202c38;--ink:#e8eef3;--mute:#8a99a6;--line:#2d3b48;--accent:#e8eef3;--accent-ink:#0f161d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f161d;--panel:#18222c;--card:#202c38;--ink:#e8eef3;--mute:#8a99a6;--line:#2d3b48;--accent:#e8eef3;--accent-ink:#0f161d;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 "Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif}
+header{max-width:1100px;margin:0 auto;padding:28px 20px 8px;display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-weight:800;font-size:clamp(34px,6vw,56px);letter-spacing:-.03em;line-height:1}
+.sub{color:var(--mute);margin:6px 0 0}
+.stat{font-weight:600;color:var(--mute)}
+.stat b{color:var(--ink);font-size:22px}
+main{max-width:1100px;margin:0 auto;padding:16px 20px 40px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+@media(max-width:760px){main{grid-template-columns:1fr}}
+.col{background:var(--panel);border:1px solid var(--line);border-top:5px solid var(--c);border-radius:10px;padding:14px;min-height:160px}
+.col.over{outline:2px dashed var(--c);outline-offset:-6px}
+.col h2{margin:0 0 12px;font-size:18px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.n{font-size:14px;color:var(--mute);font-weight:400}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:8px;display:flex;gap:8px;align-items:flex-start;cursor:grab}
+.card.drag{opacity:.4}
+.card span{flex:1;word-break:break-word;outline:none}
+.done span{text-decoration:line-through;color:var(--mute)}
+.card button{border:0;background:none;color:var(--mute);cursor:pointer;font:inherit;padding:0 4px;border-radius:4px}
+.card button:hover,.card button:focus-visible{color:var(--ink);background:var(--line)}
+form{display:flex;gap:6px;margin-top:10px}
+input{flex:1;min-width:0;font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+.add{font:inherit;font-weight:600;border:0;border-radius:6px;padding:0 14px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
+.empty{color:var(--mute);font-size:14px;margin:0 0 6px}
+.clear{font:inherit;font-size:14px;color:var(--mute);background:none;border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Taskboard</h1>
+    <p class="sub">Drag cards between columns. Double-click a task to edit it.</p>
+  </div>
+  <div style="display:flex;gap:14px;align-items:center">
+    <div class="stat"><b id="pct">0%</b> done</div>
+    <button class="clear" id="clear" type="button">Clear done</button>
+  </div>
+</header>
+<main id="board"></main>
+<script>
+(function(){
+  var COLS=[{id:"todo",name:"To do",c:"var(--c0)"},{id:"doing",name:"In progress",c:"var(--c1)"},{id:"done",name:"Done",c:"var(--c2)"}];
+  var KEY="taskboard-v1", tasks=[], dragId=null;
+  try{tasks=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){tasks=[]}
+  if(!tasks.length){tasks=[
+    {id:1,col:"todo",text:"Add my own first task"},
+    {id:2,col:"doing",text:"Build a Kanban todo app"},
+    {id:3,col:"done",text:"Pick a project idea"}]}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(tasks))}catch(e){}}
+  function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+  function render(){
+    var board=document.getElementById("board");board.innerHTML="";
+    COLS.forEach(function(col){
+      var list=tasks.filter(function(t){return t.col===col.id});
+      var box=el("section","col");box.style.setProperty("--c",col.c);
+      var h=el("h2","",col.name);h.appendChild(el("span","n",list.length));box.appendChild(h);
+      var body=el("div");
+      if(!list.length)body.appendChild(el("p","empty","Nothing here. Add a task or drop one in."));
+      list.forEach(function(t){
+        var card=el("div","card"+(col.id==="done"?" done":""));card.draggable=true;
+        var s=el("span","",t.text);
+        s.ondblclick=function(){s.contentEditable="true";s.focus()};
+        s.onblur=function(){if(s.isContentEditable){s.contentEditable="false";var v=s.textContent.trim();if(v){t.text=v;save()}render()}};
+        s.onkeydown=function(e){if(e.key==="Enter"){e.preventDefault();s.blur()}};
+        var del=el("button","","\u00d7");del.type="button";del.setAttribute("aria-label","Delete task: "+t.text);
+        del.onclick=function(){tasks=tasks.filter(function(x){return x.id!==t.id});save();render()};
+        card.appendChild(s);
+        var i=COLS.findIndex(function(c){return c.id===t.col});
+        if(i<COLS.length-1){var mv=el("button","","\u203a");mv.type="button";mv.setAttribute("aria-label","Move to "+COLS[i+1].name);mv.onclick=function(){t.col=COLS[i+1].id;save();render()};card.appendChild(mv)}
+        card.appendChild(del);
+        card.ondragstart=function(e){dragId=t.id;card.classList.add("drag");e.dataTransfer.setData("text/plain",String(t.id))};
+        card.ondragend=function(){card.classList.remove("drag")};
+        body.appendChild(card);
+      });
+      box.appendChild(body);
+      var f=document.createElement("form"),inp=document.createElement("input");
+      inp.placeholder="Add a task";inp.setAttribute("aria-label","New task in "+col.name);
+      var b=el("button","add","Add");b.type="submit";f.appendChild(inp);f.appendChild(b);
+      f.onsubmit=function(e){e.preventDefault();var v=inp.value.trim();if(!v)return;tasks.push({id:Date.now(),col:col.id,text:v});save();render()};
+      box.appendChild(f);
+      box.ondragover=function(e){e.preventDefault();box.classList.add("over")};
+      box.ondragleave=function(){box.classList.remove("over")};
+      box.ondrop=function(e){e.preventDefault();var t=tasks.find(function(x){return x.id===dragId});if(t){t.col=col.id;save()}render()};
+      board.appendChild(box);
+    });
+    var d=tasks.filter(function(t){return t.col==="done"}).length;
+    document.getElementById("pct").textContent=(tasks.length?Math.round(d/tasks.length*100):0)+"%";
+  }
+  document.getElementById("clear").onclick=function(){tasks=tasks.filter(function(t){return t.col!=="done"});save();render()};
+  render();
+})();
+</script>
+</body>
+</html>
